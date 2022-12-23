@@ -15,20 +15,7 @@ import random
 running = True
 pygame.init()
 
-def initialise(arr):
-
-    for i in range(2):
-        arr.append(object.object(
-            5.3*p(10,-11),
-            p(10,-12)*np.array([random.randint(-600,600), random.randint(-600,600)]),
-            0*p(10,-1)*np.array([random.randint(-10,30), random.randint(-10,30)]),
-            1.67*p(10, -27), 
-            0))
-
-    return arr
-
 objects = []
-objects = initialise(objects)
 
 ## FUNCTIONS ##
 
@@ -46,6 +33,18 @@ def toScreenCoords(a, cenPos, scale, scr):
     height = scr.get_height()
 
     return (-a[0]+(width/2), a[1]+(height/2))
+
+def toPhysCoords(a, cenPos, scale, scr):
+    width = scr.get_width()
+    height = scr.get_height()
+
+    a -= np.array([width/2, height/2])
+    a[0] = -a[0]
+    a *= scale
+    a += cenPos
+
+    return a
+
 
 def covalentForce(r, Eb, r0):
     r0 = r0/p(10,12)
@@ -75,7 +74,6 @@ def physicsLoop():
             for j in objects:
 
                 if i==j: 
-                    print("skipped") 
                     pass
                 else:
                     dist = distance2D(i.p,j.p)
@@ -94,7 +92,6 @@ def physicsLoop():
             a = F/i.m
             i.v = i.v + a*dt*timeSpeed
             positions.append(i.p + i.v*dt*timeSpeed)
-            print(positions[0])
         
 
         for i in range(len(positions)):
@@ -125,21 +122,31 @@ def displayLoop():
                     scale = scale/1.1
                 elif event.button == 5:
                     scale = 1.1*scale
+                elif event.button == 1:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    mousePos = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
+
+                    objects.append(object.object(
+                        5.3*p(10,-11),
+                        mousePos,
+                        0,
+                        1.67*p(10, -27), 
+                        0))
 
 
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_w]:
-            centerPosition = centerPosition - scale*np.array([0,1])/3
+            centerPosition = centerPosition - scale*np.array([0,1])
 
         if keys[pygame.K_s]:
-            centerPosition = centerPosition - scale*np.array([0,-1])/3
+            centerPosition = centerPosition - scale*np.array([0,-1])
 
         if keys[pygame.K_d]:
-            centerPosition = centerPosition - scale*np.array([1,0])/3
+            centerPosition = centerPosition - scale*np.array([1,0])
 
         if keys[pygame.K_a]:
-            centerPosition = centerPosition - scale*np.array([-1,0])/3
+            centerPosition = centerPosition - scale*np.array([-1,0])
 
         scr.fill((0,0,0))
         for i in objects:
