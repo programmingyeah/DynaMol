@@ -1,4 +1,7 @@
 # DynaMol
+
+THIS IS IN VERY EARLY ALPHA
+
 A non professional-grade MD simulator. 
 
 With this project I strive to create an interactible tool to visualise the typically theoretical and equation-oriented world of microscale chemistry. 
