@@ -1,31 +1,36 @@
+## IMPORT ##
+
 import threading
 import time
 import math
 from math import pow as p
+from pynput.keyboard import Key, Listener
 import numpy as np
 import pygame
 import object 
 import random
 
+## INITALISATION
+
+running = True
 pygame.init()
 
-dt = 0.005
-timeSpeed = 7*p(10,-11)
-G = 6.67*p(10,-11) ##exponent -11
-ke = 8.9875 * p(10,9) 
-scale = 5*p(10,-12) ##default is exponent -16
+def initialise(arr):
+
+    for i in range(2):
+        arr.append(object.object(
+            5.3*p(10,-11),
+            p(10,-12)*np.array([random.randint(-600,600), random.randint(-600,600)]),
+            0*p(10,-1)*np.array([random.randint(-10,30), random.randint(-10,30)]),
+            1.67*p(10, -27), 
+            0))
+
+    return arr
 
 objects = []
-for i in range(16):
-     objects.append(object.object(
-        5.3*p(10,-11),
-        p(10,-12)*np.array([random.randint(-100,100), random.randint(-100,100)]),
-        0*p(10,-1)*np.array([random.randint(-10,30), random.randint(-10,30)]),
-        1.67*p(10, -27), 
-        0))
+objects = initialise(objects)
 
-scr = pygame.display.set_mode((600,500), pygame.RESIZABLE)
-pygame.display.set_caption('Moldyn')
+## FUNCTIONS ##
 
 def distance2D(a,b):
     dist = math.sqrt(p(a[0]-b[0],2) + p(a[1]-b[1],2))
@@ -35,42 +40,12 @@ def mag(a):
     mag = math.sqrt(p(a[0],2)+p(a[1],2))
     return mag
 
-def solvePDE():
-    positions = []
-
-    for i in objects:
-
-        F = np.array([0,0])
-        for j in objects:
-            if i==j: pass
-            else:
-                dist = distance2D(i.p,j.p)
-
-                ##COULOMBIC FORCE
-                Fc = np.array([0,0])
-                Fc = -(j.p-i.p)*ke*i.c*j.c/p(dist,3)
-
-                ##MORSE FORCES
-
-                Fmor = covalentForce(dist, 436, 62)*(j.p-i.p)/dist ##62
-
-                ##NET FORCE
-                F = F + Fmor
-        print(mag(F))
-
-        a = F/i.m
-        i.v = i.v + a*dt*timeSpeed
-        positions.append(i.p + i.v*dt*timeSpeed)
-    
-    for i in range(len(positions)):
-        objects[i].p = positions[i]
-
-def toScreenCoords(a):
-    a = a/scale
+def toScreenCoords(a, cenPos, scale, scr):
+    a = (a - cenPos)/scale
     width = scr.get_width()
     height = scr.get_height()
 
-    return (-a[0]+width/2, a[1]+height/2)
+    return (-a[0]+(width/2), a[1]+(height/2))
 
 def covalentForce(r, Eb, r0):
     r0 = r0/p(10,12)
@@ -83,41 +58,110 @@ def covalentForce(r, Eb, r0):
 
     return 2*Eb*(1-eTerm/modR)*eTerm*(r*k+1)/(r0*p(modR,2))
 
-def rearrange(arr):
-    for i in arr:
-        j = random.randint(0,len(arr)-1)
-        i = arr.index(i)
-        e1 = arr[i]
-        e2 = arr[j]
-        arr[i] = e2
-        arr[j] = e1
+def physicsLoop():
+    global running
+    global objects
 
-    return arr
+    timeSpeed = 7*p(10,-11)
+    ke = 8.9875 * p(10,9) 
+    dt = 0.005
+
+    while running:
+        positions = []
+
+        for i in objects:
+
+            F = np.array([0,0])
+            for j in objects:
+
+                if i==j: 
+                    print("skipped") 
+                    pass
+                else:
+                    dist = distance2D(i.p,j.p)
+
+                    ##COULOMBIC FORCE
+                    Fc = np.array([0,0])
+                    Fc = -(j.p-i.p)*ke*i.c*j.c/p(dist,3)
+
+                    ##MORSE FORCES
+
+                    Fmor = covalentForce(dist, 436, 62)*(j.p-i.p)/dist ##62
+
+                    ##NET FORCE
+                    F = F + Fmor
+
+            a = F/i.m
+            i.v = i.v + a*dt*timeSpeed
+            positions.append(i.p + i.v*dt*timeSpeed)
+            print(positions[0])
         
 
-running = True 
-while running:
-
-    time.sleep(dt)
-    
-    solvePDE()
-    
-    pygame.display.flip()
-    for event in pygame.event.get():  
-        if event.type == pygame.QUIT:  
-            running = False
-
-    scr.fill((0,0,0))
-    for i in objects:
-
-        screenPosition = toScreenCoords(i.p)
-
-        if i.c < 0 :
-            pygame.draw.circle(scr, (0,0,255), screenPosition,i.r/scale)
-        elif i.c > 0:
-            pygame.draw.circle(scr, (255,0,0), screenPosition,i.r/scale)
-        else:
-            pygame.draw.circle(scr, (100,100,100), screenPosition,i.r/scale)
+        for i in range(len(positions)):
+            
+            objects[i].p = positions[i]
         
+        time.sleep(dt)
+    
+    return
+
+def displayLoop():
+    global running
+    global objects
+
+    centerPosition = np.array([0,0])
+    scale = p(10,-11) ##default is exponent -16
+
+    scr = pygame.display.set_mode((600,500), pygame.RESIZABLE)
+    pygame.display.set_caption('Moldyn')
+
+    while running:
+        pygame.display.flip()
+        for event in pygame.event.get():  
+            if event.type == pygame.QUIT:  
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 4:
+                    scale = scale/1.1
+                elif event.button == 5:
+                    scale = 1.1*scale
+
+
+        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_w]:
+            centerPosition = centerPosition - scale*np.array([0,1])/3
+
+        if keys[pygame.K_s]:
+            centerPosition = centerPosition - scale*np.array([0,-1])/3
+
+        if keys[pygame.K_d]:
+            centerPosition = centerPosition - scale*np.array([1,0])/3
+
+        if keys[pygame.K_a]:
+            centerPosition = centerPosition - scale*np.array([-1,0])/3
+
+        scr.fill((0,0,0))
+        for i in objects:
+
+            screenPosition = toScreenCoords(i.p, centerPosition, scale, scr)
+
+            if i.c < 0 :
+                pygame.draw.circle(scr, (0,0,255), screenPosition,i.r/scale)
+            elif i.c > 0:
+                pygame.draw.circle(scr, (255,0,0), screenPosition,i.r/scale)
+            else:
+                pygame.draw.circle(scr, (100,100,100), screenPosition,i.r/scale)
+        
+## CORE ##
+
+if __name__ == '__main__':
+    DThread = threading.Thread(target=displayLoop)
+    PThread = threading.Thread(target=physicsLoop)
+
+    DThread.start()
+    PThread.start()
+    DThread.join()
+    PThread.join()
 
 pygame.quit()
