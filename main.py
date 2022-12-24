@@ -4,7 +4,6 @@ import threading
 import time
 import math
 from math import pow as p
-from pynput.keyboard import Key, Listener
 import numpy as np
 import pygame
 import object 
@@ -12,6 +11,7 @@ import random
 
 ## INITALISATION
 
+pause = False
 running = True
 pygame.init()
 
@@ -60,44 +60,46 @@ def covalentForce(r, Eb, r0):
 def physicsLoop():
     global running
     global objects
+    global pause
 
     timeSpeed = 7*p(10,-11)
     ke = 8.9875 * p(10,9) 
     dt = 0.005
 
     while running:
-        positions = []
+        if pause == False:
+            positions = []
 
-        for i in objects:
+            for i in objects:
 
-            F = np.array([0,0])
-            for j in objects:
+                F = np.array([0,0])
+                for j in objects:
 
-                if i==j: 
-                    pass
-                else:
-                    dist = distance2D(i.p,j.p)
+                    if i==j: 
+                        pass
+                    else:
+                        dist = distance2D(i.p,j.p)
 
-                    ##COULOMBIC FORCE
-                    Fc = np.array([0,0])
-                    Fc = -(j.p-i.p)*ke*i.c*j.c/p(dist,3)
+                        ##COULOMBIC FORCE
+                        Fc = np.array([0,0])
+                        Fc = -(j.p-i.p)*ke*i.c*j.c/p(dist,3)
 
-                    ##MORSE FORCES
+                        ##MORSE FORCES
 
-                    Fmor = covalentForce(dist, 436, 62)*(j.p-i.p)/dist ##62
+                        Fmor = covalentForce(dist, 436, 62)*(j.p-i.p)/dist ##62
 
-                    ##NET FORCE
-                    F = F + Fmor
+                        ##NET FORCE
+                        F = F + Fmor
 
-            a = F/i.m
-            i.v = i.v + a*dt*timeSpeed
-            positions.append(i.p + i.v*dt*timeSpeed)
-        
-
-        for i in range(len(positions)):
+                a = F/i.m
+                i.v = i.v + a*dt*timeSpeed
+                positions.append(i.p + i.v*dt*timeSpeed)
             
-            objects[i].p = positions[i]
-        
+
+            for i in range(len(positions)):
+                
+                objects[i].p = positions[i]
+            
         time.sleep(dt)
     
     return
@@ -105,6 +107,7 @@ def physicsLoop():
 def displayLoop():
     global running
     global objects
+    global pause
 
     centerPosition = np.array([0,0])
     scale = p(10,-11) ##default is exponent -16
@@ -132,6 +135,11 @@ def displayLoop():
                         0,
                         1.67*p(10, -27), 
                         0))
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    pause = not pause
+                elif event.key == pygame.K_r:
+                    objects = []
 
 
         keys = pygame.key.get_pressed()
