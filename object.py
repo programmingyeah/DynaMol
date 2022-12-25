@@ -27,6 +27,112 @@ idTable = [
     )
 ]
 
+class EConfig:
+
+    def distribute(self, e):
+        Kmax = 2
+        Lmax = 8
+        Mmax = 18
+        Nmax = 32
+        Omax = 50
+        Pmax = 72
+
+        for i in range(1,e):
+            if e > Kmax:
+                self.K = Kmax
+                e-=2
+
+                if e > Lmax:
+                    self.L = Lmax
+                    e-=Lmax
+
+                    if e > Mmax:
+                        self.M = Mmax
+                        e-=Mmax
+
+                        if e > Nmax:
+                            self.N = Nmax
+                            e-=Nmax
+
+                            if e > Omax:
+                                self.O = Omax
+                                e-=Omax
+
+                                if e > Pmax:
+                                    self.P = Pmax
+                                    e-=Pmax
+                                else:
+                                    self.P = e
+                                    return
+
+                            else:
+                                self.O = e
+                                return
+
+                        else:
+                            self.N = e
+                            return
+
+                    else:
+                        self.M = e
+                        return
+
+                else:
+                    self.L = e
+                    return
+
+            else:
+                self.K = e
+                return
+
+    def __init__(self, e):
+        self.K = 0
+        self.L = 0
+        self.M = 0
+        self.N = 0
+        self.O = 0
+        self.P = 0
+
+        self.distribute(e)
+
+    def outerShell(self):
+        Kmax = 2
+        Lmax = 8
+        Mmax = 18
+        Nmax = 32
+        Omax = 50
+        Pmax = 72
+
+        if self.K != Kmax:
+            if self.K == 0:
+                return "K"
+            return "K"
+
+        if self.L != Lmax:
+            if self.L == 0:
+                return "K"
+            return "L"
+
+        if self.M != Mmax:
+            if self.M == 0:
+                return "L"
+            return "M"
+
+        if self.N != Nmax:
+            if self.M == 0:
+                return "M"
+            return "N"
+
+        if self.O != Omax:
+            if self.M == 0:
+                return "M"
+            return "O"
+
+        if self.P != Pmax:
+            if self.M == 0:
+                return "O"
+            return "P"
+
 class object:
     def __init__(self, id, position, velocity):
         self.id = id
@@ -37,3 +143,4 @@ class object:
         self.v = velocity
         self.c = 0*chargeConstant
         self.BondCount = 0
+        self.EConfig = EConfig(id+1)
