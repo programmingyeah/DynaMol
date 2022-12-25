@@ -209,7 +209,9 @@ def displayLoop():
         scr.fill((0,0,0))
 
         for i,j in bonds:
-            pygame.draw.line(scr, (250,250,250), toScreenCoords(objects[i].p, centerPosition, scale, scr), toScreenCoords(objects[j].p, centerPosition, scale, scr), 5)
+            smallest = objects[i].r[0]
+            if objects[i].r[0] > objects[j].r[0]: smallest = objects[j].r[0]
+            pygame.draw.line(scr, (250,250,250), toScreenCoords(objects[i].p, centerPosition, scale, scr), toScreenCoords(objects[j].p, centerPosition, scale, scr), int(smallest/(2*scale)))
         
         for i in objects:
 
