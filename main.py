@@ -6,16 +6,19 @@ import math
 from math import pow as p
 import numpy as np
 import pygame
-import object 
+import object
+idData = object.idTable
 import random
 
 ## INITALISATION
 
 pause = False
 running = True
+bondingConstant = -1
 pygame.init()
 
 objects = []
+bonds = []
 
 ## FUNCTIONS ##
 
@@ -49,22 +52,44 @@ def toPhysCoords(a, cenPos, scale, scr):
 def covalentForce(r, Eb, r0):
     r0 = r0/p(10,12)
 
-    Eb = Eb/(6.02*p(10,26)) ##26
+    Eb = Eb/(6.02*p(10,20)) ##20
 
     k=Eb/p(r0,2)
     eTerm = np.exp(-k*(r-r0))
     modR = r/r0
 
-    return 2*Eb*(1-eTerm/modR)*eTerm*(r*k+1)/(r0*p(modR,2))
+    return -2*Eb*(1-eTerm/modR)*eTerm*(r*k+1)/(r0*p(modR,2))
+
+    
+
+def areBonded(i,j, Eb, r0):
+    
+    r = distance2D(i.p,j.p)
+    r0 = r0/p(10,12)
+    if r == 0: r = r0/100
+    if r > 5*r0: return False
+
+    Eb = Eb/(6.02*p(10,20)) ##26
+
+    k=Eb/p(r0,2)
+    eTerm = np.exp(-k*(r-r0))
+    modR = r/r0
+
+    Epot = Eb*(p(1-(eTerm/modR),2)-1)
+    Ekin = 0.5*i.m*p(np.linalg.norm(i.v),2)
+
+    return Epot + Ekin < -0.25*Eb
 
 def physicsLoop():
     global running
     global objects
     global pause
+    global bonds
+    global idData
 
-    timeSpeed = 7*p(10,-11)
+    timeSpeed = 7*p(10,-14)
     ke = 8.9875 * p(10,9) 
-    dt = 0.005
+    dt = 0.001
 
     while running:
         if pause == False:
@@ -86,7 +111,10 @@ def physicsLoop():
 
                         ##MORSE FORCES
 
-                        Fmor = covalentForce(dist, 436, 62)*(j.p-i.p)/dist ##62
+                        Fmor = np.array([0,0])
+                        BDE = idData[i.id-1][2][j.id-1]
+                        r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                        Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
 
                         ##NET FORCE
                         F = F + Fmor
@@ -99,6 +127,17 @@ def physicsLoop():
             for i in range(len(positions)):
                 
                 objects[i].p = positions[i]
+
+            bonds = []
+
+            for i in objects:
+                for j in objects:
+                    if i != j:
+                            if areBonded(i,j, 436, 62):
+                                print("BOND REGISTERED")
+                                bonds.append((objects.index(i),objects.index(j)))
+                                i.BondCount = 1
+                                j.BondCount = 1
             
         time.sleep(dt)
     
@@ -108,6 +147,7 @@ def displayLoop():
     global running
     global objects
     global pause
+    global bonds
 
     centerPosition = np.array([0,0])
     scale = p(10,-11) ##default is exponent -16
@@ -129,17 +169,26 @@ def displayLoop():
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     mousePos = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
 
+                    id = 1
                     objects.append(object.object(
-                        5.3*p(10,-11),
+                        id,
                         mousePos,
-                        0,
-                        1.67*p(10, -27), 
-                        0))
+                        np.array([0,0])))
+                elif event.button == 3:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    mousePos = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
+
+                    id = 2
+                    objects.append(object.object(
+                        id,
+                        mousePos,
+                        np.array([0,0])))
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     pause = not pause
                 elif event.key == pygame.K_r:
                     objects = []
+                    bonds = []
 
 
         keys = pygame.key.get_pressed()
@@ -161,12 +210,13 @@ def displayLoop():
 
             screenPosition = toScreenCoords(i.p, centerPosition, scale, scr)
 
-            if i.c < 0 :
-                pygame.draw.circle(scr, (0,0,255), screenPosition,i.r/scale)
-            elif i.c > 0:
-                pygame.draw.circle(scr, (255,0,0), screenPosition,i.r/scale)
-            else:
-                pygame.draw.circle(scr, (100,100,100), screenPosition,i.r/scale)
+            if i.id == 1:
+                pygame.draw.circle(scr, (250,250,250), screenPosition,i.r[0]/scale)
+            elif i.id == 2:
+                pygame.draw.circle(scr, (250,0,0), screenPosition,i.r[0]/scale)
+
+        for i,j in bonds:
+            pygame.draw.line(scr, (250,250,250), toScreenCoords(objects[i].p, centerPosition, scale, scr), toScreenCoords(objects[j].p, centerPosition, scale, scr), 5)
         
 ## CORE ##
 
@@ -174,9 +224,9 @@ if __name__ == '__main__':
     DThread = threading.Thread(target=displayLoop)
     PThread = threading.Thread(target=physicsLoop)
 
-    DThread.start()
     PThread.start()
-    DThread.join()
+    DThread.start()
     PThread.join()
+    DThread.join()
 
 pygame.quit()
