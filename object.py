@@ -133,6 +133,15 @@ class EConfig:
                 return "O"
             return "P"
 
+        def excite():
+
+            LToN = {"K":1,"L":2,"M":3,"N":4,"O":5,"P":6}
+            NToL = {1:"K",2:"L",3:"M",4:"N",5:"O",6:"P"}
+
+            outerShell = self.outerShell()
+            self[outerShell] -= 1
+            self[NToL[LToN[outerShell]+1]] += 1
+
 class object:
     def __init__(self, id, position, velocity):
         self.id = id
