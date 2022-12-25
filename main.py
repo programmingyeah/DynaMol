@@ -135,9 +135,10 @@ def physicsLoop():
                     if i != j:
                             if areBonded(i,j, 436, 62):
                                 print("BOND REGISTERED")
-                                bonds.append((objects.index(i),objects.index(j)))
-                                i.BondCount = 1
-                                j.BondCount = 1
+                                if objects != []:
+                                    bonds.append((objects.index(i),objects.index(j)))
+                                    i.BondCount = 1
+                                    j.BondCount = 1
             
         time.sleep(dt)
     
@@ -206,6 +207,10 @@ def displayLoop():
             centerPosition = centerPosition - scale*np.array([-1,0])
 
         scr.fill((0,0,0))
+
+        for i,j in bonds:
+            pygame.draw.line(scr, (250,250,250), toScreenCoords(objects[i].p, centerPosition, scale, scr), toScreenCoords(objects[j].p, centerPosition, scale, scr), 5)
+        
         for i in objects:
 
             screenPosition = toScreenCoords(i.p, centerPosition, scale, scr)
@@ -214,9 +219,6 @@ def displayLoop():
                 pygame.draw.circle(scr, (250,250,250), screenPosition,i.r[0]/scale)
             elif i.id == 2:
                 pygame.draw.circle(scr, (250,0,0), screenPosition,i.r[0]/scale)
-
-        for i,j in bonds:
-            pygame.draw.line(scr, (250,250,250), toScreenCoords(objects[i].p, centerPosition, scale, scr), toScreenCoords(objects[j].p, centerPosition, scale, scr), 5)
         
 ## CORE ##
 
