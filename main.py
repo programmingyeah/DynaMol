@@ -14,6 +14,7 @@ import random
 
 pause = False
 running = True
+scale = p(10,-11)
 bondingConstant = -1
 pygame.init()
 
@@ -76,7 +77,7 @@ def areBonded(i,j, Eb, r0):
     modR = r/r0
 
     Epot = Eb*(p(1-(eTerm/modR),2)-1)
-    Ekin = 0.5*i.m*p(np.linalg.norm(i.v),2)
+    Ekin = 0.5*i.m*p(np.linalg.norm(i.v-j.v),2)
 
     return Epot + Ekin < -0.25*Eb
 
@@ -86,6 +87,7 @@ def physicsLoop():
     global pause
     global bonds
     global idData
+    global scale
 
     timeSpeed = 7*p(10,-14)
     ke = 8.9875 * p(10,9) 
@@ -107,38 +109,72 @@ def physicsLoop():
 
                         ##COULOMBIC FORCE
                         Fc = np.array([0,0])
-                        Fc = -(j.p-i.p)*ke*i.c*j.c/p(dist,3)
 
                         ##MORSE FORCES
 
                         Fmor = np.array([0,0])
-                        BDE = idData[i.id-1][2][j.id-1]
-                        r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                        Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
+                        Fphi = np.array([0,0])
+
+                        if (j.EConfig.valence() > 0):
+                            BDE = idData[i.id-1][2][j.id-1]
+                            r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                            Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
+                            
+                        else:
+
+                            isBonded = False
+                            for x,y in bonds:
+                                if ((objects[x]==i) and (objects[y]==j)) or ((objects[y]==i) and (objects[x]==j)): isBonded = True
+
+                            if isBonded:
+                                BDE = idData[i.id-1][2][j.id-1]
+                                r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                                Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
+                            else:
+                                aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
+                                x = dist/aU
+                                e = math.exp(x)
+                                Fphi = -1.602*p(10,-19)*(i.p-j.p)*(-3.2*0.1818*p(e,-3.2)/aU - 0.9432*0.5099*p(e,-0.9432)/aU - 0.4028*0.2802*p(e,-0.4028)/aU - 0.2016*0.02817*p(e,-0.2016)/aU)/dist
+                                print(np.linalg.norm(Fphi))
 
                         ##NET FORCE
-                        F = F + Fmor
+                        F = F + Fmor + Fphi
 
                 a = F/i.m
                 i.v = i.v + a*dt*timeSpeed
+                r=np.linalg.norm(i.p)
+                if r>=(10000*p(10,-12)-i.r[0]):
+                    sphereToCenter = (-i.p)/np.linalg.norm(i.p)
+                    angle = math.pi/2 - math.acos(np.dot(sphereToCenter,i.v/np.linalg.norm(i.v))) 
+                    radial = np.linalg.norm(i.v)*math.sin(angle)*sphereToCenter
+                    i.v = i.v - 2*radial
+
                 positions.append(i.p + i.v*dt*timeSpeed)
             
 
+            totalKE = 0
             for i in range(len(positions)):
-                
+                if objects[i]:
+                    objects[i].EConfig.BondCount = 0
                 objects[i].p = positions[i]
+
+                totalKE += 0.5*objects[i].m*np.linalg.norm(objects[i].v)
+
+            k_B = 1.38 * p(10,-23)
+            if len(objects) != 0:
+                print(str((2/3) * (totalKE)/len(objects)/k_B) + " K")
 
             bonds = []
 
             for i in objects:
                 for j in objects:
                     if i != j:
+                        if (i.EConfig.valence() > 0) and (j.EConfig.valence() > 0):
                             if areBonded(i,j, 436, 62):
-                                print("BOND REGISTERED")
                                 if objects != []:
                                     bonds.append((objects.index(i),objects.index(j)))
-                                    i.BondCount = 1
-                                    j.BondCount = 1
+                                    i.EConfig.BondCount += 1
+                                    j.EConfig.BondCount += 1
             
         time.sleep(dt)
     
@@ -151,7 +187,7 @@ def displayLoop():
     global bonds
 
     centerPosition = np.array([0,0])
-    scale = p(10,-11) ##default is exponent -16
+    global scale
 
     scr = pygame.display.set_mode((600,500), pygame.RESIZABLE)
     pygame.display.set_caption('Moldyn')
@@ -179,7 +215,7 @@ def displayLoop():
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     mousePos = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
 
-                    id = 2
+                    id = 8
                     objects.append(object.object(
                         id,
                         mousePos,
@@ -206,7 +242,8 @@ def displayLoop():
         if keys[pygame.K_a]:
             centerPosition = centerPosition - scale*np.array([-1,0])
 
-        scr.fill((0,0,0))
+        scr.fill((30,30,30))
+        pygame.draw.circle(scr, (0,0,0), toScreenCoords(np.array([0,0]), centerPosition, scale, scr), 10000*p(10,-12)/scale)
 
         for i,j in bonds:
             smallest = objects[i].r[0]
@@ -219,7 +256,7 @@ def displayLoop():
 
             if i.id == 1:
                 pygame.draw.circle(scr, (250,250,250), screenPosition,i.r[0]/scale)
-            elif i.id == 2:
+            elif i.id == 8:
                 pygame.draw.circle(scr, (250,0,0), screenPosition,i.r[0]/scale)
         
 ## CORE ##
