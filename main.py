@@ -89,7 +89,7 @@ def physicsLoop():
     global idData
     global scale
 
-    timeSpeed = 7*p(10,-14)
+    timeSpeed = p(10,-13)
     ke = 8.9875 * p(10,9) 
     dt = 0.001
 
@@ -132,10 +132,9 @@ def physicsLoop():
                                 Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
                             else:
                                 aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
-                                x = dist/aU
+                                x = dist*p(10,12)/aU
                                 e = math.exp(x)
-                                Fphi = -1.602*p(10,-19)*(i.p-j.p)*(-3.2*0.1818*p(e,-3.2)/aU - 0.9432*0.5099*p(e,-0.9432)/aU - 0.4028*0.2802*p(e,-0.4028)/aU - 0.2016*0.02817*p(e,-0.2016)/aU)/dist
-                                print(np.linalg.norm(Fphi))
+                                Fphi = 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(e,-3.2)/aU - 0.9432*0.5099*p(e,-0.9432)/aU - 0.4028*0.2802*p(e,-0.4028)/aU - 0.2016*0.02817*p(e,-0.2016)/aU)/dist
 
                         ##NET FORCE
                         F = F + Fmor + Fphi
@@ -154,11 +153,10 @@ def physicsLoop():
 
             totalKE = 0
             for i in range(len(positions)):
-                if objects[i]:
+                if objects != []: 
                     objects[i].EConfig.BondCount = 0
-                objects[i].p = positions[i]
-
-                totalKE += 0.5*objects[i].m*np.linalg.norm(objects[i].v)
+                    objects[i].p = positions[i]
+                    totalKE += 0.5*objects[i].m*np.linalg.norm(objects[i].v)
 
             k_B = 1.38 * p(10,-23)
             if len(objects) != 0:
