@@ -51,7 +51,6 @@ def toPhysCoords(a, cenPos, scale, scr):
 
 
 def covalentForce(r, Eb, r0):
-    r0 = r0/p(10,12)
 
     Eb = Eb/(6.02*p(10,20)) ##20
 
@@ -66,7 +65,6 @@ def covalentForce(r, Eb, r0):
 def areBonded(i,j, Eb, r0):
     
     r = distance2D(i.p,j.p)
-    r0 = r0/p(10,12)
     if r == 0: r = r0/100
     if r > 5*r0: return False
 
@@ -89,7 +87,7 @@ def physicsLoop():
     global idData
     global scale
 
-    timeSpeed = p(10,-13)
+    timeSpeed = 5*p(10,-13)
     ke = 8.9875 * p(10,9) 
     dt = 0.001
 
@@ -118,7 +116,7 @@ def physicsLoop():
                         if (j.EConfig.valence() > 0):
                             BDE = idData[i.id-1][2][j.id-1]
                             r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                            Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
+                            Fmor = covalentForce(dist, BDE, r0)*(i.p-j.p)/dist ##436
                             
                         else:
 
@@ -129,7 +127,7 @@ def physicsLoop():
                             if isBonded:
                                 BDE = idData[i.id-1][2][j.id-1]
                                 r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                                Fmor = covalentForce(dist, BDE, 62)*(i.p-j.p)/dist ##436
+                                Fmor = covalentForce(dist, BDE,r0)*(i.p-j.p)/dist ##436
                             else:
                                 aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
                                 x = dist*p(10,12)/aU
@@ -168,7 +166,7 @@ def physicsLoop():
                 for j in objects:
                     if i != j:
                         if (i.EConfig.valence() > 0) and (j.EConfig.valence() > 0):
-                            if areBonded(i,j, 436, 62):
+                            if areBonded(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1]):
                                 if objects != []:
                                     bonds.append((objects.index(i),objects.index(j)))
                                     i.EConfig.BondCount += 1
