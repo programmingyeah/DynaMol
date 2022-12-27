@@ -4,7 +4,6 @@ from math import pow as p
 chargeConstant = 1.6*p(10,-19) ##-19 exponent
 
 ## ALL VALUES IN SI UNITS EXCEPT FOR BONDING CONSTANTS: 
-# BOND LENGTH: pm
 # BOND DISSOCIATION ENERGY (BDE) : kJ/mol 
 
 idTable = [
