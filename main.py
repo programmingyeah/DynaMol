@@ -9,6 +9,7 @@ import pygame
 import object
 idData = object.idTable
 import random
+import decimal
 
 ## INITALISATION
 
@@ -130,9 +131,11 @@ def physicsLoop():
                                 Fmor = covalentForce(dist, BDE,r0)*(i.p-j.p)/dist ##436
                             else:
                                 aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
-                                x = dist*p(10,12)/aU
-                                e = math.exp(x)
-                                Fphi = 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(e,-3.2)/aU - 0.9432*0.5099*p(e,-0.9432)/aU - 0.4028*0.2802*p(e,-0.4028)/aU - 0.2016*0.02817*p(e,-0.2016)/aU)/dist
+                                x = decimal.Decimal(dist*p(10,12)/aU)
+                                ex = decimal.Decimal.exp(x)
+                                BDE = idData[i.id-1][2][j.id-1]/(6.02*p(10,20))
+                                r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                                Fphi = 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist- (j.p-i.p)*48*BDE*p(r0/dist,12)/p(dist,2)
 
                         ##NET FORCE
                         F = F + Fmor + Fphi
@@ -157,8 +160,13 @@ def physicsLoop():
                     totalKE += 0.5*objects[i].m*np.linalg.norm(objects[i].v)
 
             k_B = 1.38 * p(10,-23)
+            k_I = 8.314*1000
             if len(objects) != 0:
-                print(str((2/3) * (totalKE)/len(objects)/k_B) + " K")
+                T = (2/3) * ((totalKE)/len(objects))/k_B
+                print(str(T) + " K")
+                P = (len(objects))/(6.02*p(10,23))*T*k_I/(math.pi*p(10,-14))
+                print(str(P*2*math.pi*p(10,-7)*p(10,12)) + " pN")
+                print(str(P*1000000)+" uPa")
 
             bonds = []
 
@@ -168,6 +176,33 @@ def physicsLoop():
                         if (i.EConfig.valence() > 0) and (j.EConfig.valence() > 0):
                             if areBonded(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1]):
                                 if objects != []:
+                                    
+                                    for x,y in bonds:
+                                        if x == i:
+                                            r1 = distance2D(i,objects[y])
+                                            r2 = distance2D(i,j)
+
+                                            if r1 > r2:
+                                                bonds.append((objects.index(i),y))
+                                                i.EConfig.BondCount += 1
+                                                j.EConfig.BondCount += 1
+                                            else:
+                                                bonds.append((objects.index(i),objects.index(j)))
+                                                i.EConfig.BondCount += 1
+                                                j.EConfig.BondCount += 1
+                                        elif y == i:
+                                            r1 = distance2D(i,objects[x])
+                                            r2 = distance2D(i,j)
+
+                                            if r1 > r2:
+                                                bonds.append((objects.index(i),x))
+                                                i.EConfig.BondCount += 1
+                                                j.EConfig.BondCount += 1
+                                            else:
+                                                bonds.append((objects.index(i),objects.index(j)))
+                                                i.EConfig.BondCount += 1
+                                                j.EConfig.BondCount += 1
+
                                     bonds.append((objects.index(i),objects.index(j)))
                                     i.EConfig.BondCount += 1
                                     j.EConfig.BondCount += 1
@@ -216,6 +251,15 @@ def displayLoop():
                         id,
                         mousePos,
                         np.array([0,0])))
+                elif event.button == 2:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    mousePos = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
+
+                    id = 6
+                    objects.append(object.object(
+                        id,
+                        mousePos,
+                        np.array([0,0])))
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     pause = not pause
@@ -254,6 +298,8 @@ def displayLoop():
                 pygame.draw.circle(scr, (250,250,250), screenPosition,i.r[0]/scale)
             elif i.id == 8:
                 pygame.draw.circle(scr, (250,0,0), screenPosition,i.r[0]/scale)
+            elif i.id == 6:
+                pygame.draw.circle(scr, (60,60,60), screenPosition,i.r[0]/scale)
         
 ## CORE ##
 
