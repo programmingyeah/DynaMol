@@ -20,6 +20,7 @@ bondingConstant = -1
 pygame.init()
 
 objects = []
+formerBonds = []
 bonds = []
 
 ## FUNCTIONS ##
@@ -61,10 +62,7 @@ def covalentForce(r, Eb, r0):
 
     return -2*Eb*(1-eTerm/modR)*eTerm*(r*k+1)/(r0*p(modR,2))
 
-    
-
-def areBonded(i,j, Eb, r0):
-    
+def covalentPotential(i,j, Eb, r0):
     r = distance2D(i.p,j.p)
     if r == 0: r = r0/100
     if r > 5*r0: return False
@@ -75,7 +73,15 @@ def areBonded(i,j, Eb, r0):
     eTerm = np.exp(-k*(r-r0))
     modR = r/r0
 
-    Epot = Eb*(p(1-(eTerm/modR),2)-1)
+    return Eb*(p(1-(eTerm/modR),2)-1)
+
+def areBonded(i,j, Eb, r0):
+    
+    r = distance2D(i.p,j.p)
+    if r == 0: r = r0/100
+    if r > 5*r0: return False
+
+    Epot = covalentPotential(i,j, Eb, r0)
     Ekin = 0.5*i.m*p(np.linalg.norm(i.v-j.v),2)
 
     return Epot + Ekin < -0.25*Eb
@@ -135,7 +141,7 @@ def physicsLoop():
                                 ex = decimal.Decimal.exp(x)
                                 BDE = idData[i.id-1][2][j.id-1]/(6.02*p(10,20))
                                 r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                                Fphi = 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist- (j.p-i.p)*48*BDE*p(r0/dist,12)/p(dist,2)
+                                Fphi = -1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist - (j.p-i.p)*48*BDE*p(r0/dist,12)/p(dist,2)
 
                         ##NET FORCE
                         F = F + Fmor + Fphi
@@ -168,6 +174,7 @@ def physicsLoop():
                 print(str(P*2*math.pi*p(10,-7)*p(10,12)) + " pN")
                 print(str(P*1000000)+" uPa")
 
+            formerBonds = bonds
             bonds = []
 
             for i in objects:
@@ -176,37 +183,37 @@ def physicsLoop():
                         if (i.EConfig.valence() > 0) and (j.EConfig.valence() > 0):
                             if areBonded(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1]):
                                 if objects != []:
-                                    
+                                    stablerbonddetected = False
                                     for x,y in bonds:
-                                        if x == i:
-                                            r1 = distance2D(i,objects[y])
-                                            r2 = distance2D(i,j)
-
-                                            if r1 > r2:
-                                                bonds.append((objects.index(i),y))
-                                                i.EConfig.BondCount += 1
-                                                j.EConfig.BondCount += 1
+                                        pot2 = covalentPotential(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1])
+                                        if (x==i):
+                                            y = objects[y]
+                                            pot1 = covalentPotential(i,idData[i.id-1][2][y.id-1], idData[i.id-1][0][1] + idData[y.id-1][0][1])
+                                            if pot1 < pot2:
+                                                stablerbonddetected = True
+                                                break
                                             else:
-                                                bonds.append((objects.index(i),objects.index(j)))
-                                                i.EConfig.BondCount += 1
-                                                j.EConfig.BondCount += 1
-                                        elif y == i:
-                                            r1 = distance2D(i,objects[x])
-                                            r2 = distance2D(i,j)
+                                                bonds.remove((x,y))
 
-                                            if r1 > r2:
-                                                bonds.append((objects.index(i),x))
-                                                i.EConfig.BondCount += 1
-                                                j.EConfig.BondCount += 1
+
+                                        elif (y==i):
+                                            x=objects[x]
+                                            pot1 = covalentPotential(i,idData[i.id-1][2][x.id-1], idData[i.id-1][0][1] + idData[x.id-1][0][1])
+                                            if pot1 < pot2:
+                                                stablerbonddetected = True
+                                                break
                                             else:
-                                                bonds.append((objects.index(i),objects.index(j)))
-                                                i.EConfig.BondCount += 1
-                                                j.EConfig.BondCount += 1
+                                                bonds.remove((x,y))
+
+                                    if stablerbonddetected == True: break
+
 
                                     bonds.append((objects.index(i),objects.index(j)))
-                                    i.EConfig.BondCount += 1
-                                    j.EConfig.BondCount += 1
-            
+                                    i.EConfig += 1
+                                    j.EConfig += 1
+
+                                    
+
         time.sleep(dt)
     
     return
