@@ -10,6 +10,7 @@ import object
 idData = object.idTable
 import random
 import decimal
+import copy
 
 ## INITALISATION
 
@@ -56,22 +57,30 @@ def covalentForce(r, Eb, r0):
 
     Eb = Eb/(6.02*p(10,20)) ##20
 
-    k=Eb/p(r0,2)
-    eTerm = np.exp(-k*(r-r0))
-    modR = r/r0
+    recR = 1/r
+    s = r0/p(2,1/6)
+    sTerm = p(recR * s,6)
 
-    return -2*Eb*(1-eTerm/modR)*eTerm*(r*k+1)/(r0*p(modR,2))
+    return 24*Eb*(2*recR*p(sTerm,2)-recR*sTerm)
+
+def repulsiveForce(r, Eb, r0):
+    Eb = Eb/(6.02*p(10,20)) ##20
+
+    recR = 1/r
+    s = r0/p(2,1/6)
+    sTerm = p(recR * s,6)
+
+    return 48*Eb*recR*p(sTerm,2)
 
 def covalentPotential(i,j, Eb, r0):
     r = distance2D(i.p,j.p)
 
     Eb = Eb/(6.02*p(10,20)) ##26
 
-    k=Eb/p(r0,2)
-    eTerm = np.exp(-k*(r-r0))
-    modR = r/r0
+    s = r0/p(2,1/6)
+    sTerm = p(s/r,6)
 
-    return Eb*(p(1-(eTerm/modR),2)-1)
+    return 4*Eb*(p(sTerm,2)-sTerm)
 
 def areBonded(i,j, Eb, r0):
     
@@ -83,8 +92,9 @@ def areBonded(i,j, Eb, r0):
     Eb = Eb/(6.02*p(10,20)) ##26
     Ekin = 0.5*i.m*p(np.linalg.norm(i.v-j.v),2)
 
-    return Epot + Ekin < -0.25*Eb
+    return Epot + Ekin < -0.02*Eb
 
+t=0
 def physicsLoop():
     global running
     global objects
@@ -92,8 +102,9 @@ def physicsLoop():
     global bonds
     global idData
     global scale
+    global t
 
-    timeSpeed = 5*p(10,-13)
+    timeSpeed = 2*p(10,-13)
     ke = 8.9875 * p(10,9) 
     dt = 0.001
 
@@ -164,16 +175,20 @@ def physicsLoop():
                             else:
                                 aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
                                 x = decimal.Decimal(dist*p(10,12)/aU)
-                                ex = decimal.Decimal.exp(x)
+                                try:
+                                    ex = decimal.Decimal.exp(x)
+                                except decimal.Overflow:
+                                    ex = p(10,decimal.Decimal(9000))
                                 BDE = idData[i.id-1][2][j.id-1]/(6.02*p(10,20))
                                 r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                                Fphi = -1.602*p(10,-16)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist ##-19
+                                Fphi = -repulsiveForce(dist, idData[i.id-1][2][j.id-1],idData[i.id-1][0][1] + idData[j.id-1][0][1])*(j.p-i.p)/dist + 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist
 
                         ##NET FORCE
                         F = F + Fmor + Fphi
 
                 a = F/i.m
                 i.v = i.v + a*dt*timeSpeed
+                t = t + dt*timeSpeed
                 r=np.linalg.norm(i.p)
                 if r>=(5000*p(10,-12)-i.r[0]):
                     sphereToCenter = (-i.p)/np.linalg.norm(i.p)
@@ -209,12 +224,17 @@ def displayLoop():
     global objects
     global pause
     global bonds
+    global t
 
     centerPosition = np.array([0,0])
     global scale
 
     scr = pygame.display.set_mode((600,500), pygame.RESIZABLE)
     pygame.display.set_caption('Moldyn')
+
+    copyBeginPosition = None
+    copyFinalPosition = None
+    toPaste = []
 
     while running:
         pygame.display.flip()
@@ -259,6 +279,33 @@ def displayLoop():
                 elif event.key == pygame.K_r:
                     objects = []
                     bonds = []
+                elif event.key == pygame.K_c:
+                    print("nugguhgnugh")
+                    copyFinalPosition = None
+                    toPaste = []
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    copyBeginPosition = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
+                elif event.key == pygame.K_v:
+                    copyFinalPosition = None
+                    copyBeginPosition = None
+
+                    for i in toPaste:
+                        mouse_x, mouse_y = pygame.mouse.get_pos()
+                        i = copy.copy(i)
+                        i.p = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr) + i.p
+                        objects.append(i)
+            elif event.type == pygame.KEYUP:
+                if event.key == pygame.K_c:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    copyFinalPosition = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr)
+
+                    for i in objects:
+                        if (i.p[0] >= copyFinalPosition[0] and i.p[0] <= copyBeginPosition[0]) or (i.p[0] <= copyFinalPosition[0] and i.p[0] >= copyBeginPosition[0]):
+                            if (i.p[1] >= copyFinalPosition[1] and i.p[1] <= copyBeginPosition[1]) or (i.p[1] <= copyFinalPosition[1] and i.p[1] >= copyBeginPosition[1]):
+                                copied = copy.copy(i)
+                                toPaste.append(copied)
+                                toPaste[toPaste.index(copied)].p = copyBeginPosition - i.p
+
 
 
         keys = pygame.key.get_pressed()
@@ -294,6 +341,30 @@ def displayLoop():
             elif i.id == 6:
                 pygame.draw.circle(scr, (60,60,60), screenPosition,i.r[0]/scale)
         
+        if not(copyBeginPosition is None):
+            if copyFinalPosition is None:
+                A, B = pygame.mouse.get_pos()
+                screenBeginPosition = toScreenCoords(copyBeginPosition, centerPosition, scale, scr)
+                C, D = screenBeginPosition[0], screenBeginPosition[1]
+
+                if B >= D:
+                    if A >= C:
+                        rect = pygame.Rect(C, D, A-C, B-D)
+                    else:
+                        rect = pygame.Rect(A, D, C-A, B-D)
+                else:
+                    if A >= C:
+                        rect = pygame.Rect(C, B, A-C, D-B)
+                    else:
+                        rect = pygame.Rect(A, B, C-A, D-B)
+
+                pygame.draw.rect(scr, (255,255,255), rect, 2)
+            
+
+        font = pygame.font.Font('freesansbold.ttf', 28)
+        text_surface = font.render("time: "+str(math.floor(100*t/p(10,-12))/100)+"ps", 1, (250,250,250))
+        scr.blit(text_surface, (100, 40))
+
 ## CORE ##
 
 if __name__ == '__main__':
