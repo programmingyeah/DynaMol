@@ -8,8 +8,6 @@ import numpy as np
 import pygame
 import object
 idData = object.idTable
-import random
-import decimal
 import copy
 
 ## INITALISATION
@@ -24,6 +22,8 @@ objects = []
 formerBonds = []
 bonds = []
 
+timeSpeed = p(10,-13)
+maxSpeed = p(10,-11)/(0.001*timeSpeed)
 ## FUNCTIONS ##
 
 def distance2D(a,b):
@@ -54,45 +54,105 @@ def toPhysCoords(a, cenPos, scale, scr):
 
 
 def covalentForce(r, Eb, r0):
+    if r > 5*r0: return 0
 
     Eb = Eb/(6.02*p(10,20)) ##20
 
     recR = 1/r
-    s = r0/p(2,1/6)
-    sTerm = p(recR * s,6)
+    sTerm = p(recR * r0,6)
 
-    return 24*Eb*(2*recR*p(sTerm,2)-recR*sTerm)
+    return 5*12*Eb*recR*(p(sTerm,2)-sTerm)
+
+def KE(particle):
+    return p(np.linalg.norm(particle.v),2)*particle.m*0.5
 
 def repulsiveForce(r, Eb, r0):
+    if r > 5*r0: return 0
+
     Eb = Eb/(6.02*p(10,20)) ##20
 
     recR = 1/r
-    s = r0/p(2,1/6)
-    sTerm = p(recR * s,6)
+    sTerm = p(recR * r0,12)
 
-    return 48*Eb*recR*p(sTerm,2)
+    return 12*Eb*recR*sTerm
 
 def covalentPotential(i,j, Eb, r0):
     r = distance2D(i.p,j.p)
 
     Eb = Eb/(6.02*p(10,20)) ##26
+    sTerm = p(r0/r,6)
 
-    s = r0/p(2,1/6)
-    sTerm = p(s/r,6)
-
-    return 4*Eb*(p(sTerm,2)-sTerm)
+    return Eb*(p(sTerm,2)-2*sTerm)
 
 def areBonded(i,j, Eb, r0):
     
     r = distance2D(i.p,j.p)
     if r == 0: r = r0/100
-    if r > 5*r0: return False ##26
+    if r > 5*r0: return False
 
     Epot = covalentPotential(i,j, Eb, r0)
-    Eb = Eb/(6.02*p(10,20)) ##26
-    Ekin = 0.5*i.m*p(np.linalg.norm(i.v-j.v),2)
+    Eb = Eb/(6.02*p(10,20)) 
+    radialVel = np.dot(j.p-i.p, i.v - j.v) / np.linalg.norm(j.p-i.p)
+    Ekin = 0.5*i.m*p(radialVel, 2)
 
-    return Epot + Ekin < -0.02*Eb
+    return Epot + Ekin < -0.001*Eb
+
+def computeForces(i):
+    F = np.array([0,0])
+
+    for j in objects:
+
+        if i==j: 
+            pass
+        else:
+            dist = distance2D(i.p,j.p)
+
+            ##COULOMBIC FORCE
+            Fc = np.array([0,0])
+
+            ##MORSE FORCES
+
+            Fmor = np.array([0,0])
+            Fphi = np.array([0,0])
+
+            if (j.EConfig.valence() > 0) and (i.EConfig.valence() > 0):
+                BDE = idData[i.id-1][2][j.id-1]
+                r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                Fmor = covalentForce(dist, BDE, r0)*(i.p-j.p)/dist ##436
+                            
+            else:
+
+                isBonded = False
+                for x,y in bonds:
+                    if ((objects[x]==i) and (objects[y]==j)) or ((objects[y]==i) and (objects[x]==j)): isBonded = True
+
+                    if isBonded:
+                        BDE = idData[i.id-1][2][j.id-1]
+                        r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                        Fmor = covalentForce(dist, BDE,r0)*(i.p-j.p)/dist ##436
+                    else:
+                        BDE = idData[i.id-1][2][j.id-1]/(6.02*p(10,20))
+                        r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
+                        Fphi = -repulsiveForce(dist, idData[i.id-1][2][j.id-1],idData[i.id-1][0][1] + idData[j.id-1][0][1])*(j.p-i.p)/dist
+
+            ##NET FORCE
+            F = F + Fmor + Fphi
+
+    return F
+
+def applyChanges(results):
+    for i in results:
+        objects[i].p = results[i][0]
+        objects[i].v = results[i][1]
+        objects[i].a = results[i][2]
+
+def solvePDE(i, dt):
+    a_new = computeForces(i) / i.m
+    v_new = i.v + a_new*dt
+    if np.linalg.norm(v_new) > maxSpeed:
+        v_new = v_new*maxSpeed/np.linalg.norm(v_new)
+    x_new = i.p + v_new*dt
+    return (x_new, v_new, a_new)
 
 t=0
 def physicsLoop():
@@ -103,14 +163,13 @@ def physicsLoop():
     global idData
     global scale
     global t
+    global timeSpeed
 
-    timeSpeed = 2*p(10,-13)
     ke = 8.9875 * p(10,9) 
     dt = 0.001
 
     while running:
         if pause == False:
-            formerBonds = bonds
             bonds = []
 
             for i in objects:
@@ -119,97 +178,63 @@ def physicsLoop():
                         if (i.EConfig.valence() > 0) and (j.EConfig.valence() > 0):
                             if areBonded(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1]):
                                 if objects != []:
-                                    
+                                        
+                                    pot1 = covalentPotential(i,j, idData[i.id-1][2][j.id-1], idData[i.id-1][0][1] + idData[j.id-1][0][1])
                                     foundPreviousBond = False
-                                    for x,y in formerBonds:
-                                        if (x==objects.index(i)):
-                                            if not (y==objects.index(j)):
-                                                foundPreviousBond = True
-                                                break
-                                        elif (y==objects.index(i)):
-                                            if not (x==objects.index(j)):
-                                                foundPreviousBond = True
-                                                break
+                                    for x,y in bonds:
+                                        if ((x==objects.index(i)) and (y==objects.index(j))) or ((x==objects.index(j)) and (y==objects.index(i))):
+                                            foundPreviousBond = True 
+                                            break
+                                        
+
+                                        if x==objects.index(i):
+                                            pot2 = covalentPotential(i, objects[y], idData[i.id-1][2][objects[y].id-1], idData[i.id-1][0][1] + idData[objects[y].id-1][0][1])
+                                            if pot1 > pot2:
+                                                bonds.remove((x,y))
+                                                i.EConfig.BondCount -= 1
+                                                objects[y].EConfig.BondCount -= 1
+                                        elif y==objects.index(i):
+                                            pot2 = covalentPotential(i, objects[x], idData[i.id-1][2][objects[x].id-1], idData[i.id-1][0][1] + idData[objects[x].id-1][0][1])
+                                            if pot1 > pot2:
+                                                bonds.remove((x,y))
+                                                i.EConfig.BondCount -= 1
+                                                objects[x].EConfig.BondCount -= 1
 
                                     if foundPreviousBond: break
-                                    
-                                    bonds.append((objects.index(i),objects.index(j)))
+                                        
+                                    if objects.index(i) < objects.index(j):
+                                        bonds.append((objects.index(i),objects.index(j)))
+                                    else:
+                                        bonds.append((objects.index(j),objects.index(i)))
                                     i.EConfig.BondCount += 1
                                     j.EConfig.BondCount += 1
 
-            positions = []
+            values = []
 
             for i in objects:
 
-                F = np.array([0,0])
-                for j in objects:
-
-                    if i==j: 
-                        pass
-                    else:
-                        dist = distance2D(i.p,j.p)
-
-                        ##COULOMBIC FORCE
-                        Fc = np.array([0,0])
-
-                        ##MORSE FORCES
-
-                        Fmor = np.array([0,0])
-                        Fphi = np.array([0,0])
-
-                        if (j.EConfig.valence() > 0):
-                            BDE = idData[i.id-1][2][j.id-1]
-                            r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                            Fmor = covalentForce(dist, BDE, r0)*(i.p-j.p)/dist ##436
-                            
-                        else:
-
-                            isBonded = False
-                            for x,y in bonds:
-                                if ((objects[x]==i) and (objects[y]==j)) or ((objects[y]==i) and (objects[x]==j)): isBonded = True
-
-                            if isBonded:
-                                BDE = idData[i.id-1][2][j.id-1]
-                                r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                                Fmor = covalentForce(dist, BDE,r0)*(i.p-j.p)/dist ##436
-                            else:
-                                aU = 0.8854*52.9/(p(i.id,0.23)+p(j.id,0.23))
-                                x = decimal.Decimal(dist*p(10,12)/aU)
-                                try:
-                                    ex = decimal.Decimal.exp(x)
-                                except decimal.Overflow:
-                                    ex = p(10,decimal.Decimal(9000))
-                                BDE = idData[i.id-1][2][j.id-1]/(6.02*p(10,20))
-                                r0 = idData[i.id-1][0][1] + idData[j.id-1][0][1]
-                                Fphi = -repulsiveForce(dist, idData[i.id-1][2][j.id-1],idData[i.id-1][0][1] + idData[j.id-1][0][1])*(j.p-i.p)/dist + 1.602*p(10,-19)*(j.p-i.p)*(-3.2*0.1818*p(ex,-3.2)/aU - 0.9432*0.5099*p(ex,-0.9432)/aU - 0.4028*0.2802*p(ex,-0.4028)/aU - 0.2016*0.02817*p(ex,-0.2016)/aU)/dist
-
-                        ##NET FORCE
-                        F = F + Fmor + Fphi
-
-                a = F/i.m
-                i.v = i.v + a*dt*timeSpeed
                 t = t + dt*timeSpeed
                 r=np.linalg.norm(i.p)
-                if r>=(5000*p(10,-12)-i.r[0]):
+                if r>=(1000*p(10,-12)-i.r[0]):
                     sphereToCenter = (-i.p)/np.linalg.norm(i.p)
                     angle = math.pi/2 - math.acos(np.dot(sphereToCenter,i.v/np.linalg.norm(i.v))) 
                     radial = np.linalg.norm(i.v)*math.sin(angle)*sphereToCenter
                     i.v = i.v - 2*radial
-
-                positions.append(i.p + i.v*dt*timeSpeed)
+                values.append(solvePDE(i, dt*timeSpeed))
             
 
             totalKE = 0
-            for i in range(len(positions)):
+            for i in range(len(values)):
                 if objects != []: 
                     objects[i].EConfig.BondCount = 0
-                    objects[i].p = positions[i]
+                    objects[i].p = values[i][0]
+                    objects[i].v = values[i][1]
                     totalKE += 0.5*objects[i].m*np.linalg.norm(objects[i].v)
 
             k_B = 1.38 * p(10,-23)
             k_I = 8.314*1000
             if len(objects) != 0:
-                T = (2/3) * ((totalKE)/len(objects))/k_B
+                T = (2/3) * 6.022 * p(10,23) * totalKE/(len(objects) * 8.314)
                 print(str(T) + " K")
                 P = (len(objects))/(6.02*p(10,23))*T*k_I/(math.pi*p(10,-14))
                 print(str(P*2*math.pi*p(10,-7)*p(10,12)) + " pN")
@@ -294,6 +319,9 @@ def displayLoop():
                         i = copy.copy(i)
                         i.p = toPhysCoords(np.array([float(mouse_x), float(mouse_y)]), centerPosition, scale, scr) + i.p
                         objects.append(i)
+                elif event.key == pygame.K_t:
+                    for i in objects:
+                        i.v /= 2
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_c:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -323,8 +351,8 @@ def displayLoop():
             centerPosition = centerPosition - scale*np.array([-1,0])
 
         scr.fill((30,30,30))
-        pygame.draw.circle(scr, (0,0,0), toScreenCoords(np.array([0,0]), centerPosition, scale, scr), 5000*p(10,-12)/scale)
-
+        pygame.draw.circle(scr, (0,0,0), toScreenCoords(np.array([0,0]), centerPosition, scale, scr), 1000*p(10,-12)/scale)
+        
         for i,j in bonds:
             smallest = objects[i].r[0]
             if objects[i].r[0] > objects[j].r[0]: smallest = objects[j].r[0]
