@@ -29,8 +29,8 @@ idTable = [
     (
         (6.7 * p(10,-11), 6.9 * p(10,-11)),
         1.99 * p(10, -26),
-        (  ##BDE: H-ID
-            337.2, ##436
+        (  ##BDE: C-ID
+            337.2, 
             0,
             0,
             0,
@@ -112,6 +112,7 @@ class object:
         self.p = position
         self.m = idTable[id][1]
         self.v = velocity
+        self.a = np.array([0,0])
         self.c = 0*chargeConstant
         self.EConfig = EConfig(id+1)
         self.EConfig.distribute(id+1)
